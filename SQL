@@ -83,3 +83,106 @@ on sales.product_id = menu.product_id
 order by customer_id, order_date asc;
 
 --The first items orderd by customer A were curry and sushi. The first item ordered by customer B was curry. The first item orderd by customer C was ramen. 
+
+-- 4. What is the most purchased item on the menu and how many times was it purchased by all customers?
+
+SELECT menu.product_name,  COUNT(sales.product_id) AS purchase_frequency
+FROM dannys_diner.menu 
+JOIN dannys_diner.sales USING(product_id)
+GROUP BY menu.product_name, sales.product_id
+ORDER BY sales.product_id DESC
+LIMIT 1;
+
+- ramen was purchased 8 times making it the most purchased item by all customers. 
+
+-- 5. Which item was the most popular for each customer?
+
+
+ SELECT sales.customer_id, menu.product_name, 
+  COUNT(menu.product_id) AS order_count,
+  DENSE_RANK() OVER(PARTITION BY sales.customer_id
+  ORDER BY COUNT(sales.customer_id) DESC) AS rank
+FROM dannys_diner.menu
+JOIN dannys_diner.sales
+ ON menu.product_id = sales.product_id
+GROUP BY sales.customer_id, menu.product_name;
+
+-- Customer A and customer C both have ramen as their favorite item. Customer B purchased each item an equal amount of time so they have no favorite item. 
+
+-- 6. Which item was purchased first by the customer after they became a member?
+
+ SELECT sales.customer_id, members.join_date, sales.order_date,   sales.product_id,
+         DENSE_RANK() OVER(PARTITION BY sales.customer_id
+  ORDER BY sales.order_date) AS rank
+     FROM dannys_diner.sales
+ JOIN dannys_diner.members
+  ON sales.customer_id = members.customer_id
+ WHERE sales.order_date >= members.join_date;
+ 
+ --Customer A's first order was curry, and customer B's first order was sushi. Customer C is not a member.
+ 
+ -- 7. Which item was purchased just before the customer became a member?
+ 
+  SELECT sales.customer_id, members.join_date, sales.order_date,   sales.product_id,
+         DENSE_RANK() OVER(PARTITION BY sales.customer_id
+  ORDER BY sales.order_date) AS rank
+     FROM dannys_diner.sales
+ JOIN dannys_diner.members
+  ON sales.customer_id = members.customer_id
+ WHERE sales.order_date < members.join_date;
+ 
+--- Customer A purchased sushi and curry before becoming a memeber. Customer B purchased sushi before becoming a member. 
+
+-- 8. What is the total items and amount spent for each member before they became a member?
+
+Select sales.customer_id, count(sales.product_id ) as quantity ,Sum(menu.price) as total_sales
+From dannys_diner.sales
+Join dannys_diner.menu
+ON menu.product_id = sales.product_id
+JOIN dannys_diner.members
+ON members.Customer_id = sales.customer_id
+Where sales.order_date < members.join_date
+Group by sales.customer_id;
+
+--Customer B spent $40 and customer A spent $25.
+
+-- 9.  If each $1 spent equates to 10 points and sushi has a 2x points multiplier - how many points would each customer have?
+
+WITH points
+AS (
+SELECT sales.customer_id
+    , sales.product_id
+    , menu.price
+    , CASE 
+        WHEN product_id = 1 THEN price * 20
+        ELSE price *10
+        END AS points
+FROM dannys_diner.sales
+JOIN dannys_diner.menu USING(product_id))
+
+SELECT customer_id
+    , SUM(points) AS total_points
+FROM points
+GROUP BY customer_id;
+
+--Customer A's total points are 860. Customer B's total points are 940. Customer C's total points are 360.
+
+-- 10. In the first week after a customer joins the program (including their join date) they earn 2x points on all items, not just sushi - how many points do customer A and B have at the end of January?
+
+Select sales.Customer_id, 
+       SUM(
+	   Case 
+	  When menu.product_ID = 1 THEN menu.price*20
+	  When sales.order_date >= members.join_date Then menu.price*20
+	  Else menu.price*10
+	  END 
+	  ) as Points
+From dannys_diner.members
+join dannys_diner.sales
+On members.customer_id = sales.customer_id
+Join dannys_diner.menu
+On menu.product_id = sales.product_id
+Where sales.order_date >= members.join_date
+Group by sales.customer_id
+
+--Customer A has 1020 points and customer B has 680 points. 
